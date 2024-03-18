@@ -1,6 +1,5 @@
 import sys
 import os
-import logging
 class Organiser():
 
     directories = ['PDF', 'VIDEO', 'IMAGE', 'DEB', 'ARCHIVES', 'SOURCE_CODE', 'DOCS', 'EXECUTABLES', 'MISC']
@@ -61,8 +60,10 @@ class Organiser():
 
 
     def __init__(self, path) -> None:
-        self.path = path
+
+        self.path = os.path.abspath(path)
         
+        print(f'Setting Up watchdog for {self.path}')
         # Creating directories and checking if they are already present 
         for dir in self.directories:
             path_dir = os.path.join(path, dir)
@@ -73,38 +74,28 @@ class Organiser():
                 print(f'{dir} directory already exists')
 
     def arrange_file(self, file):
+        self.mv_file(file, self.find_file_type(file))
+
+    def find_file_type(self, file):
         if(file.lower().endswith(('.pdf'))):
-            self.mv_file(file, 'PDF')
+            return 'PDF'
         elif(file.lower().endswith(('.deb'))):
-            self.mv_file(file, 'DEB')
+            return 'DEB'
         elif(file.lower().endswith(tuple(self.video_extensions))):
-            self.mv_file(file, 'VIDEO')
+            return 'VIDEO' 
         elif(file.lower().endswith(tuple(self.image_extensions))):
-            self.mv_file(file, 'IMAGE')
+            return 'IMAGE'
         elif(file.lower().endswith(tuple(self.document_extensions))):
-            self.mv_file(file, 'DOCS')
+            return 'DOCS'
         elif(file.lower().endswith(tuple(self.archive_extensions))):
-            self.mv_file(file, 'ARCHIVES')
+            return 'ARCHIVES'
         elif(file.lower().endswith(tuple(self.code_extensions))):
-            self.mv_file(file, 'SOURCE_CODE')
+            return 'SOURCE_CODE'
         elif(file.lower().endswith(tuple(self.executable_extensions))):
-            self.mv_file(file, 'EXECUTABLES')
+            return 'EXECUTABLES'
         else:
-            self.mv_file(file, 'MISC')
-
+            return 'MISC'
     
-    def arrange_files(self):
-        # Iterate over files in path
-        for file in os.listdir(self.path):
-        #    pass
-        #for (root, dirs, files) in os.walk(self.path, topdown=True):
-
-            # os.path.abspath() not working
-            file = os.path.join(self.path, file)
-            if os.path.isfile(file):
-                print(file)
-                self.arrange_file(file)
-
     def mv_file(self, src_path, dest_folder):
         #src_path = os.path.join(self.path, filename)
         dest_path = os.path.join(self.path, dest_folder, os.path.basename(src_path))
@@ -114,5 +105,30 @@ class Organiser():
             print(f'[MV]: {src_path} moved to {dest_path}')
         except OSError as e:
             print(f'An error occurred {e}')
+
+    def arrange_file(self, file):
+        self.mv_file(file, self.find_file_type(file))
+    def walk_on_filtered_directories(self):
         
-            
+        for root, dirs, files in os.walk(self.path, topdown=True):
+            dirs[:] = [d for d in dirs if d in self.directories]
+
+            yield root, dirs, files
+    def initial_clean(self, exclude_misc=True):
+        
+        # search 'PDF', 'VIDEO', 'IMAGE', 'DEB', 'ARCHIVES', 'SOURCE_CODE', 'DOCS', 'EXECUTABLES', 'MISC' folders for any misplaced file
+        for (root, dirs, files) in self.walk_on_filtered_directories(): # (root, dirs, files)
+            for file in files:
+                file_type = self.find_file_type(file) # what is the type of the current file
+                if file_type not in root: # if it is in the wrong folder
+                    
+                    if file_type == 'MISC' and not exclude_misc:
+                        continue
+                    src_path = os.path.join(root, file) # files contains only file names
+                    self.mv_file(src_path, file_type) # move file to the folder it is supposed to be
+        
+        # tidy given path(self.pat)
+        for file in os.listdir(self.path):
+            file = os.path.join(self.path, file)
+            if os.path.isfile(file):
+                self.arrange_file(file)
